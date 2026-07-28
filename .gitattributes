@@ -1,0 +1,3 @@
+# This tree is consumed on Linux: scripts checked out with CRLF fail with
+# "bad interpreter", and the Go toolchain and systemd units expect LF too.
+* text=auto eol=lf
