@@ -1,0 +1,9 @@
+/bin/
+/dist/
+/.idea/
+/.vscode/
+*.exe
+*.log
+*.pem
+deploy/phnctl.env
+

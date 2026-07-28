@@ -1,0 +1,41 @@
+[Unit]
+Description=Predator PHN16-71 web control
+Documentation=https://localhost/
+After=network-online.target linuwu_sense.service
+Wants=network-online.target
+Requires=linuwu_sense.service
+
+[Service]
+Type=simple
+User=phnctl
+Group=phnctl
+SupplementaryGroups=linuwu_sense
+EnvironmentFile=/etc/phnctl/phnctl.env
+ExecStart=/usr/local/bin/phnctl serve
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+UMask=0027
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectControlGroups=yes
+ProtectKernelLogs=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/sys
+ReadWritePaths=-/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/predator_sense
+ReadWritePaths=-/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
+ReadWritePaths=-/sys/firmware/acpi/platform_profile
+
+[Install]
+WantedBy=multi-user.target

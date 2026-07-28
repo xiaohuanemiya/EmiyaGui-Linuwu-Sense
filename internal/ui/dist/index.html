@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080c0f">
+  <meta name="description" content="Predator PHN16-71 的安全远程硬件控制面板">
+  <title>Predator Control</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <section class="login-shell" id="loginScreen" aria-labelledby="loginTitle">
+    <div class="login-card">
+      <div class="brand-mark" aria-hidden="true"><span>P</span></div>
+      <p class="eyebrow">PRIVATE HARDWARE CONSOLE</p>
+      <h1 id="loginTitle">Predator Control</h1>
+      <p class="login-copy">连接到 emiya-ubuntu，安全控制散热、性能与设备功能。</p>
+      <form id="loginForm">
+        <label class="field">
+          <span>用户名</span>
+          <input id="loginUsername" name="username" autocomplete="username" value="admin" required>
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button class="primary-button login-button" type="submit">
+          <span>进入控制台</span><span aria-hidden="true">→</span>
+        </button>
+      </form>
+
+      <form id="setupForm" hidden>
+        <p class="setup-hint">
+          首次使用，请设置管理员密码。安装令牌见服务日志
+          <code>journalctl --user -u phnctl</code>，或
+          <code>~/.config/phnctl/setup-token.txt</code>。
+        </p>
+        <label class="field">
+          <span>安装令牌</span>
+          <input id="setupToken" name="token" autocomplete="off" spellcheck="false" required>
+        </label>
+        <label class="field">
+          <span>用户名</span>
+          <input id="setupUsername" name="username" autocomplete="username" value="admin" required>
+        </label>
+        <label class="field">
+          <span>设置密码</span>
+          <input id="setupPassword" name="new-password" type="password" autocomplete="new-password" required>
+        </label>
+        <label class="field">
+          <span>确认密码</span>
+          <input id="setupConfirm" name="confirm-password" type="password" autocomplete="new-password" required>
+        </label>
+        <p class="form-error" id="setupError" role="alert"></p>
+        <button class="primary-button login-button" type="submit">
+          <span>创建账户并进入</span><span aria-hidden="true">→</span>
+        </button>
+      </form>
+
+      <p class="secure-note"><span class="secure-dot"></span>TLS 加密 · 仅限授权用户</p>
+    </div>
+  </section>
+
+  <div class="app-shell" id="mainApp" hidden>
+    <header class="topbar">
+      <a class="brand" href="#overview" aria-label="Predator Control 首页">
+        <span class="brand-mark brand-mark-small" aria-hidden="true"><span>P</span></span>
+        <span><strong>Predator</strong><small>CONTROL</small></span>
+      </a>
+      <div class="topbar-actions">
+        <div class="connection-pill">
+          <span class="status-dot" id="connectionDot"></span>
+          <span id="connectionText">正在连接</span>
+        </div>
+        <button class="icon-button" id="logoutButton" type="button" aria-label="退出登录" title="退出登录">↗</button>
+      </div>
+    </header>
+
+    <main>
+      <p class="degraded-notice" id="degradedNotice" role="status" hidden></p>
+      <section class="hero" id="overview">
+        <div>
+          <p class="eyebrow">EMIYA-UBUNTU · PHN16-71</p>
+          <h1>系统运行<span>尽在掌控</span></h1>
+          <p class="hero-copy">实时监控热状态，并以经过硬件回读的操作控制 Predator。</p>
+        </div>
+        <div class="power-badge" id="powerBadge">
+          <span class="power-icon" aria-hidden="true">ϟ</span>
+          <div><small>供电状态</small><strong id="powerText">检测中</strong></div>
+        </div>
+      </section>
+
+      <section class="profile-section panel" data-feature="thermalProfile">
+        <div class="section-heading compact-heading">
+          <div>
+            <p class="eyebrow">THERMAL PROFILE</p>
+            <h2>性能模式</h2>
+          </div>
+          <div class="current-profile">
+            <span>当前</span>
+            <strong id="currentProfile">—</strong>
+          </div>
+        </div>
+        <div class="profile-grid" id="profileGrid" aria-label="可用性能模式"></div>
+        <p class="profile-description" id="profileDescription"></p>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel telemetry-panel" data-feature="fanTelemetry">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">COOLING</p>
+              <h2>风扇转速</h2>
+            </div>
+            <span class="live-badge"><span></span>LIVE</span>
+          </div>
+          <div class="metric-row">
+            <div class="metric">
+              <span>CPU FAN</span>
+              <strong id="cpuRpm">—</strong>
+              <small>RPM</small>
+            </div>
+            <div class="metric">
+              <span>GPU FAN</span>
+              <strong id="gpuRpm">—</strong>
+              <small>RPM</small>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="fanChart" aria-label="风扇转速历史图"></canvas></div>
+        </article>
+
+        <article class="panel telemetry-panel">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">THERMALS</p>
+              <h2>核心温度</h2>
+            </div>
+            <span class="sensor-note" id="sensorNote">2 秒采样</span>
+          </div>
+          <div class="metric-row">
+            <div class="metric" data-feature="cpuTemperature">
+              <span>CPU PACKAGE</span>
+              <strong id="cpuTemp">—</strong>
+              <small>°C</small>
+            </div>
+            <div class="metric unavailable-metric" id="gpuTempMetric">
+              <span>GPU</span>
+              <strong id="gpuTemp">—</strong>
+              <small id="gpuTempNote">传感器不可用</small>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="tempChart" aria-label="核心温度历史图"></canvas></div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel fan-control" data-feature="fanControl">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">FAN CONTROL</p>
+              <h2>散热策略</h2>
+            </div>
+            <span class="readback-badge">硬件回读</span>
+          </div>
+          <div class="segmented" id="fanMode" role="group" aria-label="风扇模式">
+            <button type="button" data-mode="auto">自动</button>
+            <button type="button" data-mode="manual">手动</button>
+            <button type="button" data-mode="max">全速</button>
+          </div>
+          <div class="fan-sliders" id="fanSliders">
+            <label class="range-field">
+              <span><b>CPU 风扇</b><output id="cpuFanOutput">0%</output></span>
+              <input id="cpuFanSlider" type="range" min="0" max="100" value="0">
+            </label>
+            <label class="range-field">
+              <span><b>GPU 风扇</b><output id="gpuFanOutput">0%</output></span>
+              <input id="gpuFanSlider" type="range" min="0" max="100" value="0">
+            </label>
+          </div>
+          <p class="interlock-note" id="fanInterlock" hidden>Silent 模式下固件接管散热，手动控制已锁定。</p>
+        </article>
+
+        <article class="panel quick-settings">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">DEVICE</p>
+              <h2>设备设置</h2>
+            </div>
+          </div>
+          <div class="setting-list">
+            <label class="setting-row" data-feature="batteryLimiter">
+              <span class="setting-icon">80</span>
+              <span><b>电池保护</b><small>充电上限设为 80%</small></span>
+              <input class="switch" id="batteryLimiter" type="checkbox">
+            </label>
+            <label class="setting-row" data-feature="backlightTimeout">
+              <span class="setting-icon">KB</span>
+              <span><b>背光自动关闭</b><small>闲置 30 秒后关闭</small></span>
+              <input class="switch" id="backlightTimeout" type="checkbox">
+            </label>
+            <label class="setting-row" data-feature="lcdOverride">
+              <span class="setting-icon">LCD</span>
+              <span><b>低延迟显示</b><small>启用 LCD Override</small></span>
+              <input class="switch" id="lcdOverride" type="checkbox">
+            </label>
+            <label class="setting-row" data-feature="bootAnimationSound">
+              <span class="setting-icon">♪</span>
+              <span><b>开机动画与音效</b><small>Acer 启动动画和提示音</small></span>
+              <input class="switch" id="bootAnimationSound" type="checkbox">
+            </label>
+            <label class="setting-row select-row" data-feature="usbCharging">
+              <span class="setting-icon">USB</span>
+              <span><b>关机 USB 充电</b><small>最低电量阈值</small></span>
+              <select id="usbCharging" aria-label="关机 USB 充电阈值">
+                <option value="0">关闭</option>
+                <option value="10">10%</option>
+                <option value="20">20%</option>
+                <option value="30">30%</option>
+              </select>
+            </label>
+            <div class="setting-row danger-row" data-feature="batteryCalibration">
+              <span class="setting-icon">CAL</span>
+              <span><b>电池校准</b><small id="calibrationStatus">未运行</small></span>
+              <button class="danger-button" id="calibrationButton" type="button">开始</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel keyboard-panel" id="keyboardSection">
+        <div class="card-heading keyboard-heading">
+          <div>
+            <p class="eyebrow">PREDATOR RGB</p>
+            <h2>四区键盘灯光</h2>
+          </div>
+          <div class="tab-switcher" role="tablist">
+            <button type="button" class="active" id="zoneTab" role="tab" aria-selected="true">分区静态</button>
+            <button type="button" id="effectTab" role="tab" aria-selected="false">动态效果</button>
+          </div>
+        </div>
+
+        <div class="keyboard-content" id="zonePanel" role="tabpanel" data-feature="keyboardPerZone">
+          <div class="keyboard-visual" aria-label="四个键盘灯光分区">
+            <label><span>ZONE 1</span><input type="color" id="zone1" value="#00aec7"></label>
+            <label><span>ZONE 2</span><input type="color" id="zone2" value="#00aec7"></label>
+            <label><span>ZONE 3</span><input type="color" id="zone3" value="#00aec7"></label>
+            <label><span>ZONE 4</span><input type="color" id="zone4" value="#00aec7"></label>
+          </div>
+          <label class="range-field keyboard-brightness">
+            <span><b>亮度</b><output id="zoneBrightnessOutput">100%</output></span>
+            <input id="zoneBrightness" type="range" min="0" max="100" value="100">
+          </label>
+        </div>
+
+        <div class="keyboard-content effect-content" id="effectPanel" role="tabpanel" hidden data-feature="keyboardEffects">
+          <label class="field compact-field">
+            <span>效果模式</span>
+            <select id="effectMode">
+              <option value="0">Static · 静态</option>
+              <option value="1">Breathing · 呼吸</option>
+              <option value="2">Neon · 霓虹</option>
+              <option value="3">Wave · 波浪</option>
+              <option value="4">Shifting · 流转</option>
+              <option value="5">Zoom · 缩放</option>
+              <option value="6">Meteor · 流星</option>
+              <option value="7">Twinkling · 闪烁</option>
+            </select>
+          </label>
+          <label class="field compact-field" data-effect-param="color">
+            <span>主色</span>
+            <input id="effectColor" type="color" value="#00aec7">
+          </label>
+          <label class="field compact-field" data-effect-param="direction">
+            <span>方向</span>
+            <select id="effectDirection">
+              <option value="1">从右向左</option>
+              <option value="2">从左向右</option>
+            </select>
+          </label>
+          <label class="range-field" data-effect-param="speed">
+            <span><b>速度</b><output id="effectSpeedOutput">5</output></span>
+            <input id="effectSpeed" type="range" min="0" max="9" value="5">
+          </label>
+          <label class="range-field">
+            <span><b>亮度</b><output id="effectBrightnessOutput">100%</output></span>
+            <input id="effectBrightness" type="range" min="0" max="100" value="100">
+          </label>
+        </div>
+      </section>
+
+      <section class="about-bar">
+        <span><i></i> linuwu_sense <b id="driverVersion">—</b></span>
+        <span>数据来自 Linux sysfs · 所有更改均经硬件回读</span>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="confirmDialog" class="confirm-dialog">
+    <form method="dialog">
+      <span class="warning-symbol" aria-hidden="true">!</span>
+      <h2 id="confirmTitle">确认操作</h2>
+      <p id="confirmMessage"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary-button">取消</button>
+        <button value="confirm" class="danger-button">确认执行</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+</body>
+</html>
+
