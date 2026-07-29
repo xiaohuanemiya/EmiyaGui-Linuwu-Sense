@@ -252,6 +252,94 @@ curl -kI https://<本机IP>:8443/
 
 ---
 
+## 内核升级后要做什么
+
+**正常情况下：什么都不用做。** 两边都已经自动化，但机制不同。
+
+### 驱动：DKMS 自动重建
+
+`dkms.conf` 里 `AUTOINSTALL="yes"`，且 `/etc/kernel/postinst.d/dkms` 会在装新内核时自动
+为它重建模块。更关键的是执行顺序 —— `/etc/kernel/postinst.d/` 按字典序执行：
+
+```
+dkms  →  dracut  →  ...  →  zz-update-grub
+```
+
+`dkms` 排在 `dracut` 前面，所以**先重建模块、再重建 initramfs**，新 initrd 里装的必然是
+刚编好的那个。本文档反复强调的那个「initramfs 带着旧模块开机抢跑」的坑，在内核升级这条
+路径上从来不会发生 —— 它只会在**手动** `dkms install` 时出现，而 Makefile 已经补上了。
+
+头文件也不用管：`linux-headers-generic` 已安装，新内核的 headers 会跟着一起装上。
+
+### GUI：完全不受影响
+
+`phnctl` 是静态链接的 Go 二进制（`file` 报 `statically linked` / `not a dynamic
+executable`），不加载任何内核模块、不链接 libc。**内核换了它照跑，永远不需要重装。**
+
+它只通过 sysfs 文件读写硬件，而那些路径由驱动提供、按 `name` 枚举而非固定编号，所以连
+hwmon 编号变化都能自适应。
+
+### 升级后唯一要做的：验证
+
+重启后跑一次这个，确认 DKMS 真的把新内核的模块建出来并加载了：
+
+```bash
+echo "kernel = $(uname -r)"
+echo "loaded = $(cat /sys/module/linuwu_sense/srcversion)"
+echo "ondisk = $(modinfo -F srcversion linuwu_sense)"
+dkms status
+```
+
+- 两个 srcversion 一致 → 正常
+- `dkms status` 里出现了新内核的条目 → 正常
+
+顺手确认标签还在（等价于确认跑的是打了补丁的构建）：
+
+```bash
+for h in /sys/class/hwmon/hwmon*; do
+  [ "$(cat $h/name 2>/dev/null)" = acer ] && grep -H . $h/temp2_label
+done
+```
+
+### 如果 DKMS 构建失败了
+
+内核大版本跳跃时，驱动可能用到已变更的内核 API。症状是 `dkms status` 里没有新内核的条目，
+面板打开后硬件项全部不可用。
+
+先试着拉取更新后重装 —— 上游可能已经适配了新内核：
+
+```bash
+cd ~/Linuwu-Sense
+git pull
+make dkms-install
+```
+
+看构建日志定位原因：
+
+```bash
+cat /var/lib/dkms/linuwu-sense/1.0.0/build/make.log
+```
+
+如果确实是内核 API 变了、需要改源码，那就是一次真正的移植工作，不是重装能解决的。这期间
+可以先用旧内核启动（GRUB 的 Advanced options 里还留着上一个内核），面板照常可用。
+
+### 什么时候才需要重装 GUI
+
+只有当你想升级 GUI 本身时：
+
+```bash
+cd ~/EmiyaGui-Linuwu-Sense && git pull    # 或重新 clone
+podman run --rm -v .:/src:Z -w /src docker.io/library/golang:1.24-alpine \
+  sh -c 'go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /src/phnctl ./cmd/phnctl'
+install -m 0755 phnctl ~/.local/bin/phnctl
+systemctl --user restart phnctl
+```
+
+**不要重跑 `install-user.sh`** —— 它会拒绝覆盖已有配置（`~/.config/phnctl/phnctl.env`
+存在时直接退出 3）。你的密码、证书和会话密钥都在那里，升级二进制不该动它们。
+
+---
+
 ## 常见坑
 
 | 现象 | 原因 | 处理 |
