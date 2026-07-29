@@ -7,3 +7,6 @@
 *.pem
 deploy/phnctl.env
 
+
+# Private project notes, deliberately not published.
+/phn16-71-webgui-prompt.md
